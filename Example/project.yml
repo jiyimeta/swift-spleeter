@@ -3,7 +3,7 @@ name: SpleeterExample
 options:
   developmentLanguage: en
   deploymentTarget:
-    iOS: 15.0
+    iOS: 17.0
 
 packages:
   Spleeter:
@@ -23,4 +23,3 @@ targets:
       - SpleeterExample
     dependencies:
       - package: Spleeter
-

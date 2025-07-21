@@ -7,7 +7,7 @@ public enum Spleeter2ModelError: Error {
 }
 
 private enum FeatureNames {
-    static let vocalMask = "vocalMask"
+    static let vocalsMask = "vocalsMask"
     static let instrumentsMask = "instrumentsMask"
 }
 
@@ -50,8 +50,8 @@ final class Spleeter2ModelOutput: MLFeatureProvider {
     /// vocalsMask as 2 × frequencyLimit × length × 1 4-dimensional array of floats
     var vocalsMask: MLMultiArray {
         get throws {
-            guard let multiArray = provider.featureValue(for: FeatureNames.vocalMask)?.multiArrayValue else {
-                throw Spleeter2ModelError.invalidFeatureName(FeatureNames.vocalMask)
+            guard let multiArray = provider.featureValue(for: FeatureNames.vocalsMask)?.multiArrayValue else {
+                throw Spleeter2ModelError.invalidFeatureName(FeatureNames.vocalsMask)
             }
             return multiArray
         }
@@ -106,7 +106,7 @@ final class Spleeter2ModelOutput: MLFeatureProvider {
     init(vocalsMask: MLMultiArray, instrumentsMask: MLMultiArray) throws {
         provider = try MLDictionaryFeatureProvider(
             dictionary: [
-                FeatureNames.vocalMask: MLFeatureValue(multiArray: vocalsMask),
+                FeatureNames.vocalsMask: MLFeatureValue(multiArray: vocalsMask),
                 FeatureNames.instrumentsMask: MLFeatureValue(multiArray: instrumentsMask),
             ]
         )

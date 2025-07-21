@@ -3,7 +3,7 @@ import SwiftUI
 
 enum SeparationStatus {
     case notStarted
-    case processing(currentProgress: Int, total: Int)
+    case processing(currentProgress: Int, total: Int, fraction: Float)
     case completed
     case error(any Error)
 }
@@ -41,10 +41,10 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundStyle(.red)
                         }
-                    case let .processing(currentProgress, total):
+                    case let .processing(currentProgress, total, fraction):
                         VStack {
                             ProgressView()
-                            Text("\(currentProgress) / \(total)")
+                            Text("\(currentProgress) / \(total) (\(fraction * 100, specifier: "%.0f")%)")
                         }
                     case .completed:
                         AudioPlayerView(
@@ -81,7 +81,11 @@ struct ContentView: View {
                     from: originalURL,
                     to: Stems2(vocals: vocalsURL, instruments: instrumentsURL)
                 ) {
-                    status = .processing(currentProgress: progress.current, total: progress.total)
+                    status = .processing(
+                        currentProgress: progress.current,
+                        total: progress.total,
+                        fraction: progress.fraction
+                    )
                 }
                 status = .completed
             } catch {

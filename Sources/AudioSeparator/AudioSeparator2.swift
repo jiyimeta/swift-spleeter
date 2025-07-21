@@ -194,5 +194,9 @@ extension AudioSeparator2 {
 
         /// Current completed chunk or step index.
         public let current: Int
+
+        public var fraction: Float {
+            Float(current) / Float(total)
+        }
     }
 }

@@ -93,7 +93,8 @@ struct AudioPlayerView: View {
     }
 
     private func play() {
-        let players = switch playerState {
+        let players: [AVAudioPlayer]
+        switch playerState {
         case let .player(existingPlayers):
             players = existingPlayers.map(\.player)
         case .error, .none:

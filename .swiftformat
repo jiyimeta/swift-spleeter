@@ -2,8 +2,9 @@
 --disable andOperator
 --disable extensionAccessControl
 --disable unusedArguments
+--disable conditionalAssignment
 --lineaftermarks false
---swiftversion 5.9
+--swiftversion 6.1
 --wraparguments before-first
 --wrapcollections before-first
 --wrapparameters before-first

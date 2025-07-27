@@ -14,7 +14,7 @@ public struct AudioSeparator2 {
 
     private let clampingFrameCount: Int
     private var clampingLength: Int {
-        clampingFrameCount * (hopLength - 1)
+        hopLength * (clampingFrameCount - 1)
     }
 
     /// Initializes the audio separator with a compiled Spleeter2 Core ML model and STFT parameters.
@@ -179,8 +179,19 @@ public struct AudioSeparator2 {
                 )
             )
 
+            let realFrames = try await monauralMasked[..., 0].transposed().array2d(of: Float.self)
+
             let maxLength = max(chunk.left.count, chunk.right.count)
             let clamped = monauralMaskedWaveform.prefix(maxLength)
+            print(
+                chunk.left.count,
+                chunk.right.count,
+                monauralMaskedWaveform.count,
+                clamped.count,
+                complex.shape,
+                monauralMasked.shape,
+                [realFrames.count, realFrames.map(\.count).min()]
+            )
             return Array(clamped)
         }
     }

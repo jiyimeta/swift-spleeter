@@ -179,19 +179,8 @@ public struct AudioSeparator2 {
                 )
             )
 
-            let realFrames = try await monauralMasked[..., 0].transposed().array2d(of: Float.self)
-
             let maxLength = max(chunk.left.count, chunk.right.count)
             let clamped = monauralMaskedWaveform.prefix(maxLength)
-            print(
-                chunk.left.count,
-                chunk.right.count,
-                monauralMaskedWaveform.count,
-                clamped.count,
-                complex.shape,
-                monauralMasked.shape,
-                [realFrames.count, realFrames.map(\.count).min()]
-            )
             return Array(clamped)
         }
     }

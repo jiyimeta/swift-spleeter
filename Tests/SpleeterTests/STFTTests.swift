@@ -4,20 +4,18 @@ import Foundation
 import Testing
 
 struct STFTTests {
-    static var sineWave: [Float] {
-        let length = 32
-        let frequency: Float = 2
-        let signal = (0 ..< length).map { sin(2.0 * .pi * frequency * Float($0) / Float(length)) }
+    @Test
+    func stft() throws {
+        // fftSize == hopLength * 4 && signal.count % hopLength == 0
+        let signal = [Float](repeating: 0, count: 220_160)
+        let stft = try STFT(fftSize: 4096, hopLength: 1024, frequencyLimit: 1024)
 
-        return signal
-    }
+        let spectrogram = try stft.forward(waveform: signal)
+        let reconstructed = try stft.inverse(spectrogram)
 
-    @Test(arguments: [sineWave])
-    func testSTFT(signal: [Float]) {
-        let stft = STFT(fftSize: 16, hopLength: 4, frequencyLimit: 4)
-        let spectrogram = stft.forward(waveform: signal)
-        let reconstructed = stft.inverse(spectrogram)
-
+        #expect(spectrogram.realFrames.count == 216)
+        #expect(spectrogram.realFrames.map(\.count).max() == 1024)
+        #expect(spectrogram.realFrames.map(\.count).min() == 1024)
         #expect(reconstructed.count == signal.count)
     }
 }

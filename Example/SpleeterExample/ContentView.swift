@@ -19,7 +19,7 @@ struct ContentView: View {
     @State private var originalURL: URL?
     @State private var isDocumentPickerPresented = false
     private let vocalsURL: URL = .temporaryDirectory(appending: "vocals.wav")
-    private let instrumentsURL: URL = .temporaryDirectory(appending: "instruments.wav")
+    private let accompanimentURL: URL = .temporaryDirectory(appending: "accompaniment.wav")
 
     var body: some View {
         VStack {
@@ -51,7 +51,7 @@ struct ContentView: View {
                             title: "Separated",
                             urls: [
                                 (name: "Vocals", url: vocalsURL),
-                                (name: "Instruments", url: instrumentsURL),
+                                (name: "Accompaniment", url: accompanimentURL),
                             ]
                         )
                     }
@@ -79,7 +79,7 @@ struct ContentView: View {
                 let separator = try AudioSeparator2(modelURL: modelURL)
                 for try await progress in separator.separate(
                     from: originalURL,
-                    to: Stems2(vocals: vocalsURL, instruments: instrumentsURL)
+                    to: Stems2(vocals: vocalsURL, accompaniment: accompanimentURL)
                 ) {
                     status = .processing(
                         currentProgress: progress.current,

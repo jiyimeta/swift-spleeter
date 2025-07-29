@@ -1,23 +1,26 @@
 /// A generic container holding a pair of values representing separated audio stems: vocals and instruments.
-public struct Stems2<Value> {
+public struct Stems2<Value>: StemsProtocol {
     /// The value associated with the vocals stem.
     public let vocals: Value
 
-    /// The value associated with the instruments stem.
-    public let instruments: Value
+    /// The value associated with the accompaniment stem.
+    public let accompaniment: Value
 
     /// Initializes a new instance with given vocals and instruments values.
     ///
     /// - Parameters:
     ///   - vocals: The value for the vocals stem.
-    ///   - instruments: The value for the instruments stem.
-    public init(vocals: Value, instruments: Value) {
+    ///   - accompaniment: The value for the accompaniment stem.
+    public init(vocals: Value, accompaniment: Value) {
         self.vocals = vocals
-        self.instruments = instruments
+        self.accompaniment = accompaniment
     }
 }
 
 extension Stems2 {
+    /// The values of the stems as an array.
+    public var values: [Value] { [vocals, accompaniment] }
+
     /// Transforms both vocals and instruments values synchronously using a throwing closure.
     ///
     /// - Parameter transform: A closure that transforms a `Value` into another type.
@@ -28,11 +31,11 @@ extension Stems2 {
     ) rethrows -> Stems2<Transformed> {
         try Stems2<Transformed>(
             vocals: transform(vocals),
-            instruments: transform(instruments)
+            accompaniment: transform(accompaniment)
         )
     }
 
-    /// Transforms both vocals and instruments values asynchronously using a throwing closure.
+    /// Transforms both vocals and accompaniment values asynchronously using a throwing closure.
     ///
     /// - Parameter transform: An async closure that transforms a `Value` into another type.
     /// - Throws: Rethrows any error thrown by the transform closure.
@@ -42,7 +45,7 @@ extension Stems2 {
     ) async rethrows -> Stems2<Transformed> {
         try await Stems2<Transformed>(
             vocals: transform(vocals),
-            instruments: transform(instruments)
+            accompaniment: transform(accompaniment)
         )
     }
 }

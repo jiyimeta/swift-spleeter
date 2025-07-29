@@ -1,59 +1,66 @@
 import CoreML
 
-/// Audio separator that separates a music into 2 stems (vocals and instruments)
-/// by using a pretrained Spleeter Core ML model.
-public struct AudioSeparator2 {
-    private let spleeter2Model: Spleeter2Model
+protocol InternalAudioSeparatorProtocol: AudioSeparatorProtocol {
+    associatedtype SpleeterModel: SpleeterModelProtocol
+    associatedtype AudioFileStreamWriterStems: StemsProtocol
+        where AudioFileStreamWriterStems.Value == AudioFileStreamWriter
 
-    private let fftSize: Int
-    private var hopLength: Int {
+    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
+    typealias MLTensorStems = SpleeterModel.MLTensorStems
+
+    var model: SpleeterModel { get }
+    var fftSize: Int { get }
+    var frequencyLimit: Int { get }
+    var clampingFrameCount: Int { get }
+
+    init(
+        model: SpleeterModel,
+        fftSize: Int,
+        frequencyLimit: Int,
+        clampingFrameCount: Int
+    ) throws
+
+    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
+    func asyncMapStems(
+        _ tensors: MLTensorStems,
+        _ transform: (MLTensor) async throws -> [Float]
+    ) async rethrows -> FloatArrayStems
+
+    func mapStems(
+        _ urls: URLStems,
+        _ transform: (URL) throws -> AudioFileStreamWriter
+    ) rethrows -> AudioFileStreamWriterStems
+}
+
+extension InternalAudioSeparatorProtocol {
+    var hopLength: Int {
         fftSize / 4
     }
 
-    private let frequencyLimit: Int
-
-    private let clampingFrameCount: Int
-    private var clampingLength: Int {
+    var clampingLength: Int {
         hopLength * (clampingFrameCount - 1)
     }
 
-    /// Initializes the audio separator with a compiled Spleeter2 Core ML model and STFT parameters.
-    ///
-    /// - Parameters:
-    ///   - modelURL: URL pointing to the compiled Core ML model (.mlmodelc).
-    ///   - fftSize: FFT size for Short-Time Fourier Transform (STFT). Must match the model's configuration.
-    ///   - frequencyLimit: Number of frequency bins retained in the STFT output. Must match the model's configuration.
-    ///   - clampingFrameCount: Number of STFT time frames processed per model inference.
-    ///                         Must match the model's configuration.
-    ///
-    /// - Throws: An error if the model fails to load from the provided URL.
+    // swiftlint:disable:next missing_docs
     public init(
         modelURL: URL,
-        fftSize: Int = 4096,
-        frequencyLimit: Int = 1024,
-        clampingFrameCount: Int = 216
+        fftSize: Int,
+        frequencyLimit: Int,
+        clampingFrameCount: Int
     ) throws {
-        spleeter2Model = try Spleeter2Model(contentsOf: modelURL)
-        self.fftSize = fftSize
-        self.frequencyLimit = frequencyLimit
-        self.clampingFrameCount = clampingFrameCount
+        try self.init(
+            model: SpleeterModel(contentsOf: modelURL),
+            fftSize: fftSize,
+            frequencyLimit: frequencyLimit,
+            clampingFrameCount: clampingFrameCount
+        )
     }
 
-    /// Separates vocals and instruments from an audio file located at `inputURL`, and writes
-    /// the separated stems to the corresponding URLs in `outputURLs`.
-    ///
-    /// This method reads the input file in chunks, processes each chunk asynchronously,
-    /// and streams progress updates.
-    ///
-    /// - Parameters:
-    ///   - inputURL: The URL of the audio file to separate.
-    ///   - outputURLs: Destination URLs for the separated vocals and instruments audio files.
-    ///
-    /// - Returns: An `AsyncThrowingStream` that emits `Progress` updates and may throw errors.
     @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
+    // swiftlint:disable:next missing_docs
     public func separate(
         from inputURL: URL,
-        to outputURLs: Stems2<URL>
+        to outputURLs: URLStems
     ) -> AsyncThrowingStream<Progress, any Error> {
         AsyncThrowingStream { continuation in
             Task {
@@ -62,16 +69,13 @@ public struct AudioSeparator2 {
 
                     let sampleRate = audioFile.sampleRate
 
-                    let vocalsWriter = try AudioFileStreamWriter(
-                        to: outputURLs.vocals,
-                        sampleRate: sampleRate,
-                        channelCount: 1
-                    )
-                    let instrumentsWriter = try AudioFileStreamWriter(
-                        to: outputURLs.instruments,
-                        sampleRate: sampleRate,
-                        channelCount: 1
-                    )
+                    let fileWriters = try mapStems(outputURLs) {
+                        try AudioFileStreamWriter(
+                            to: $0,
+                            sampleRate: sampleRate,
+                            channelCount: 1
+                        )
+                    }
 
                     let stride = stride(from: 0, to: audioFile.length, by: clampingLength)
 
@@ -84,8 +88,9 @@ public struct AudioSeparator2 {
 
                         let output = try await separate(chunk: chunk)
 
-                        try vocalsWriter.append(samples: [output.vocals])
-                        try instrumentsWriter.append(samples: [output.instruments])
+                        for (writer, samples) in zip(fileWriters.values, output.values) {
+                            try writer.append(samples: [samples])
+                        }
 
                         continuation.yield(Progress(total: stride.underestimatedCount, current: index + 1))
                     }
@@ -98,18 +103,11 @@ public struct AudioSeparator2 {
         }
     }
 
-    /// Separates vocals and instruments from a stereo waveform.
-    ///
-    /// This method asynchronously processes the waveform in chunks and streams progress
-    /// updates along with partial separation results.
-    ///
-    /// - Parameter waveform: The input stereo waveform represented as `StereoValues<[Float]>`.
-    ///
-    /// - Returns: An `AsyncThrowingStream` that emits tuples of optional separated stems and progress updates.
     @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
+    // swiftlint:disable:next missing_docs
     public func separate(
         _ waveform: StereoValues<[Float]>
-    ) -> AsyncThrowingStream<(Stems2<[Float]>?, Progress), any Error> {
+    ) -> AsyncThrowingStream<(FloatArrayStems?, Progress), any Error> {
         AsyncThrowingStream { continuation in
             Task {
                 do {
@@ -152,7 +150,7 @@ public struct AudioSeparator2 {
     @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
     private func separate(
         chunk: StereoValues<[Float]>
-    ) async throws -> Stems2<[Float]> {
+    ) async throws -> FloatArrayStems {
         let stft = try STFT(fftSize: 4096, hopLength: 1024, frequencyLimit: 1024)
 
         let spectrograms = try chunk.mapChannels {
@@ -162,13 +160,9 @@ public struct AudioSeparator2 {
 
         let magnitude = MLTensor(spectrograms.mapChannels(\.magnitude))
 
-        let result = try await spleeter2Model.prediction(magnitude: magnitude)
-        let masks = try Stems2(
-            vocals: result.vocalsMaskTensor,
-            instruments: result.instrumentsMaskTensor
-        )
+        let masks = try await model.prediction(magnitude: magnitude)
 
-        return try await masks.asyncMapStems { mask in
+        return try await asyncMapStems(masks) { mask in
             let complex = MLTensor(spectrograms.mapChannels(\.complex))
             let masked = mask * complex
             let monauralMasked = masked.mean(alongAxes: 0)
@@ -182,21 +176,6 @@ public struct AudioSeparator2 {
             let maxLength = max(chunk.left.count, chunk.right.count)
             let clamped = monauralMaskedWaveform.prefix(maxLength)
             return Array(clamped)
-        }
-    }
-}
-
-extension AudioSeparator2 {
-    /// Represents progress updates emitted during asynchronous separation operations.
-    public struct Progress: Sendable {
-        /// Total number of chunks or steps to be processed.
-        public let total: Int
-
-        /// Current completed chunk or step index.
-        public let current: Int
-
-        public var fraction: Float {
-            Float(current) / Float(total)
         }
     }
 }

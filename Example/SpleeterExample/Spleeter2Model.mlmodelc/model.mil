@@ -1,5 +1,5 @@
 program(1.0)
-[buildInfo = dict<tensor<string, []>, tensor<string, []>>({{"coremlc-component-MIL", "3404.16.1"}, {"coremlc-version", "3404.24.1"}, {"coremltools-component-torch", "2.7.0"}, {"coremltools-source-dialect", "TorchScript"}, {"coremltools-version", "8.2"}})]
+[buildInfo = dict<tensor<string, []>, tensor<string, []>>({{"coremlc-component-MIL", "3404.16.1"}, {"coremlc-version", "3404.24.1"}, {"coremltools-component-torch", "2.7.1"}, {"coremltools-source-dialect", "TorchScript"}, {"coremltools-version", "8.3.0"}})]
 {
     func main<ios15>(tensor<fp32, [2, 1024, 216]> magnitude) {
             tensor<int32, [1]> var_12_axes_0 = const()[name = tensor<string, []>("op_12_axes_0"), val = tensor<int32, [1]>([-1])];
@@ -568,7 +568,7 @@ program(1.0)
             tensor<int32, [1]> var_648_axes_0 = const()[name = tensor<string, []>("op_648_axes_0"), val = tensor<int32, [1]>([-1])];
             tensor<fp16, [2, 1024, 216, 1]> var_648_cast_fp16 = expand_dims(axes = var_648_axes_0, x = var_646_cast_fp16)[name = tensor<string, []>("op_648_cast_fp16")];
             tensor<string, []> var_648_cast_fp16_to_fp32_dtype_0 = const()[name = tensor<string, []>("op_648_cast_fp16_to_fp32_dtype_0"), val = tensor<string, []>("fp32")];
-            tensor<fp32, [2, 1024, 216, 1]> instrumentsMask = cast(dtype = var_648_cast_fp16_to_fp32_dtype_0, x = var_648_cast_fp16)[name = tensor<string, []>("cast_4")];
+            tensor<fp32, [2, 1024, 216, 1]> accompanimentMask = cast(dtype = var_648_cast_fp16_to_fp32_dtype_0, x = var_648_cast_fp16)[name = tensor<string, []>("cast_4")];
             tensor<fp32, [2, 1024, 216, 1]> vocalsMask = cast(dtype = var_614_cast_fp16_to_fp32_dtype_0, x = var_614_cast_fp16)[name = tensor<string, []>("cast_5")];
-        } -> (vocalsMask, instrumentsMask);
+        } -> (vocalsMask, accompanimentMask);
 }

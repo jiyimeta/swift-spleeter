@@ -13,7 +13,7 @@ private enum PlayerState {
 
 struct AudioPlayerView: View {
     let title: String
-    let urls: [(name: String, url: URL)]
+    let namedURLs: [NamedURL]
 
     @State private var playerState: PlayerState = .none
 
@@ -99,7 +99,7 @@ struct AudioPlayerView: View {
             players = existingPlayers.map(\.player)
         case .error, .none:
             do {
-                let namedPlayers = try urls.map {
+                let namedPlayers = try namedURLs.map {
                     try (name: $0.name, player: AVAudioPlayer(contentsOf: $0.url))
                 }
                 players = namedPlayers.map(\.player)

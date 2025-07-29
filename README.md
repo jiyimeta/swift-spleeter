@@ -6,7 +6,7 @@ A Swift library for separating vocals and instruments from music using a pretrai
 
 ## Features
 
-- Uses Deezer's **Spleeter 2-stem model** compiled as a Core ML model
+- Uses Deezer's **Spleeter model** compiled as a Core ML model
 - Supports streaming audio processing for long files
 - Exposes separation results as monaural audio
 - Works with stereo input (or mono, automatically handled)
@@ -81,7 +81,7 @@ for try await (result, progress) in separator.separate(samples) {
 
 ## Requirements
 
-- A compiled `.mlmodelc` version of the 2-stem Spleeter model
+- A compiled `.mlmodelc` version of the 2-, 4- or 5-stem Spleeter model
 - Designed to work on macOS 15 / iOS 18 / tvOS 18 / watchOS 11 / visionOS 2 or later
 - Library can be imported on earlier OS versions, but usage requires runtime availability checks via `if #available(...)`
 

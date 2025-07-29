@@ -1,5 +1,5 @@
 program(1.0)
-[buildInfo = dict<tensor<string, []>, tensor<string, []>>({{"coremlc-component-MIL", "3404.16.1"}, {"coremlc-version", "3404.24.1"}, {"coremltools-component-torch", "2.7.1"}, {"coremltools-source-dialect", "TorchScript"}, {"coremltools-version", "8.3.0"}})]
+[buildInfo = dict<tensor<string, []>, tensor<string, []>>({{"coremlc-component-MIL", "3404.16.1"}, {"coremlc-version", "3404.24.1"}, {"coremltools-component-torch", "2.7.0"}, {"coremltools-source-dialect", "TorchScript"}, {"coremltools-version", "8.2"}})]
 {
     func main<ios15>(tensor<fp32, [2, 1024, 216]> magnitude) {
             tensor<int32, [1]> var_12_axes_0 = const()[name = tensor<string, []>("op_12_axes_0"), val = tensor<int32, [1]>([-1])];

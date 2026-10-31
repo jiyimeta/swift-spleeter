@@ -5,6 +5,19 @@ public struct StereoValues<Value> {
 
     /// The value for the right audio channel.
     public let right: Value
+
+    /// Pairs a left and a right channel value.
+    public init(left: Value, right: Value) {
+        self.left = left
+        self.right = right
+    }
+}
+
+extension StereoValues where Value == [Float] {
+    /// The two channels' mean, sample by sample, over the shorter channel's length.
+    public var monaural: [Float] {
+        zip(left, right).map { ($0 + $1) / 2 }
+    }
 }
 
 extension StereoValues {

@@ -6,6 +6,7 @@ public struct AudioSeparator4: AudioSeparatorProtocol, InternalAudioSeparatorPro
     typealias SpleeterModel = Spleeter4Model
 
     public typealias FloatArrayStems = Stems4<[Float]>
+    public typealias StereoFloatArrayStems = Stems4<StereoValues<[Float]>>
     public typealias URLStems = Stems4<URL>
     typealias AudioFileStreamWriterStems = Stems4<AudioFileStreamWriter>
 
@@ -15,11 +16,15 @@ public struct AudioSeparator4: AudioSeparatorProtocol, InternalAudioSeparatorPro
     let clampingFrameCount: Int
 
     @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
-    func asyncMapStems(
+    func asyncMapStereoStems(
         _ tensors: MLTensorStems,
-        _ transform: (MLTensor) async throws -> [Float]
-    ) async rethrows -> Stems4<[Float]> {
+        _ transform: (MLTensor) async throws -> StereoValues<[Float]>
+    ) async rethrows -> Stems4<StereoValues<[Float]>> {
         try await tensors.asyncMapStems(transform)
+    }
+
+    func monaural(_ stems: Stems4<StereoValues<[Float]>>) -> Stems4<[Float]> {
+        stems.mapStems(\.monaural)
     }
 
     func mapStems(

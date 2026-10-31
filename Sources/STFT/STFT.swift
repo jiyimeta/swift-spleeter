@@ -98,8 +98,14 @@ struct STFT {
                 }
             }
 
-            realFrames.append(Array(real.prefix(frequencyLimit)))
-            imagFrames.append(Array(imag.prefix(frequencyLimit)))
+            // vDSP's packed real FFT returns twice the DFT, and keeps the Nyquist bin's real part where the DC bin's
+            // imaginary part would be (DC is real). `torch.stft` / `tf.signal.stft` — what the model was trained on —
+            // give the plain DFT, so halve it and give DC its zero imaginary part. The Nyquist bin is past any
+            // `frequencyLimit` Spleeter uses, and the inverse pads the bins past the limit with zeros, as Spleeter
+            // does.
+            imag[0] = 0
+            realFrames.append(vDSP.multiply(0.5, Array(real.prefix(frequencyLimit))))
+            imagFrames.append(vDSP.multiply(0.5, Array(imag.prefix(frequencyLimit))))
         }
 
         return Spectrogram(

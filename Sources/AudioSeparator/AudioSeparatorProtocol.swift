@@ -8,6 +8,9 @@ public protocol AudioSeparatorProtocol {
     /// The type of stems containing float arrays.
     associatedtype FloatArrayStems: StemsProtocol where FloatArrayStems.Value == [Float]
 
+    /// The type of stems containing a float array per channel.
+    associatedtype StereoFloatArrayStems: StemsProtocol where StereoFloatArrayStems.Value == StereoValues<[Float]>
+
     /// Initializes the audio separator with a compiled Spleeter2 Core ML model and STFT parameters.
     ///
     /// - Parameters:
@@ -54,6 +57,19 @@ public protocol AudioSeparatorProtocol {
     func separate(
         _ waveform: StereoValues<[Float]>
     ) -> AsyncThrowingStream<(FloatArrayStems?, Progress), any Error>
+
+    /// Separates a stereo waveform into stems that keep both channels.
+    ///
+    /// Each window is one model prediction for both channels, as in `separate(_:)`; the stems are returned per
+    /// channel instead of as their mean. For every channel, the stems add up to the input.
+    ///
+    /// - Parameter waveform: The input stereo waveform represented as `StereoValues<[Float]>`.
+    ///
+    /// - Returns: An `AsyncThrowingStream` that emits tuples of optional separated stems and progress updates.
+    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
+    func separateStereo(
+        _ waveform: StereoValues<[Float]>
+    ) -> AsyncThrowingStream<(StereoFloatArrayStems?, Progress), any Error>
 }
 
 extension AudioSeparatorProtocol {

@@ -8,7 +8,8 @@ A Swift library for separating vocals and instruments from music using a pretrai
 
 - Uses Deezer's **Spleeter model** compiled as a Core ML model
 - Supports streaming audio processing for long files
-- Exposes separation results as monaural audio
+- Exposes separation results as monaural audio, or per channel with `separateStereo(_:)`
+- Applies Spleeter's ratio masks, so the stems add up to the input
 - Works with stereo input (or mono, automatically handled)
 - Async/Await and progress-reporting support (macOS 15+, iOS 18+)
 
@@ -76,6 +77,22 @@ for try await (result, progress) in separator.separate(samples) {
     print("Progress: \(progress.current)/\(progress.total)")
 }
 ```
+
+### 3. Keep both channels
+
+```swift
+let separator = try AudioSeparator4(modelURL: modelURL)
+let samples = StereoValues(left: leftSamples, right: rightSamples)
+
+for try await (result, _) in separator.separateStereo(samples) {
+    if let result {
+        // result.vocals.left / result.vocals.right: [Float], and the same for drums, bass and other
+    }
+}
+```
+
+Ending the stream early — breaking out of the loop, or cancelling the task that iterates it — stops the separation
+after the window in progress.
 
 ---
 

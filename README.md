@@ -107,7 +107,15 @@ after the window in progress.
 ## Models
 
 - A compiled model (`Spleeter2Model.mlmodelc`) is included in [Demo App](#demo-app) and can be used directly.
+- The 2-, 4- and 5-stem models are attached to the [releases](https://github.com/jiyimeta/swift-spleeter/releases). Use the
+  ones from 0.3.1 or later with this version of the library.
 - To customize the model, use the provided [spleeter-pytorch](https://github.com/jiyimeta/spleeter-pytorch) submodule under [Tools/spleeter-pytorch/](Tools/spleeter-pytorch/) to export and compile `.mlmodelc` files.
+
+The models emit each stem's raw mask, and the library turns them into Spleeter's ratio masks
+(m_i² / Σ m_j²) in FP32. Models from the 0.2.0 release computed the ratio masks themselves in FP16, where squaring a
+magnitude above 256 overflows: loud bins such as a kick drum's dropped out of their stem, and this library then
+normalized the masks a second time. The 2- and 4-stem models run in FP16; the 5-stem model is converted with
+`--precision float32`, because its FP16 network output drifts from Spleeter's (about 20 dB SNR on the piano stem).
 
 ---
 

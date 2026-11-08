@@ -1,3 +1,4 @@
+import CoreML
 import Foundation
 @testable import Spleeter
 import Testing
@@ -10,9 +11,9 @@ struct AudioSeparatorTests {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Example/SpleeterExample/Spleeter2Model.mlmodelc")
 
-    /// The 4-stem model from the 0.2.0 release, when a copy sits in `~/Library/Caches/folino-stem-test/`.
+    /// The 4-stem model from the 0.3.1 release, when a copy sits in `~/Library/Caches/swift-spleeter-test/`.
     static let fourStemModel = URL(fileURLWithPath: NSHomeDirectory())
-        .appendingPathComponent("Library/Caches/folino-stem-test/Spleeter4Model.mlmodelc")
+        .appendingPathComponent("Library/Caches/swift-spleeter-test/Spleeter4Model.mlmodelc")
 
     /// A few seconds of something music-like: two tones and a decaying click train per channel.
     static func signal(seconds: Double, channelSeed: Double) -> [Float] {
@@ -77,6 +78,39 @@ struct AudioSeparatorTests {
         #expect(vocals.count == left.count)
         #expect(Self.relativeError(zip(vocals, accompaniment).map { $0 + $1 }, left) < 0.02)
         #expect(rightPeak < 1e-4)
+    }
+
+    /// The models emit each stem's raw mask — the magnitude it estimates for that stem — and the separator turns them
+    /// into ratio masks in FP32. A model that already emitted ratio masks (the 0.2.0 release's) was normalized twice,
+    /// and squared magnitudes in FP16, where anything above 256 overflows.
+    @Test
+    func modelEmitsRawMasks() async throws {
+        guard #available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *) else { return }
+        let model = try Spleeter2Model(contentsOf: Self.twoStemModel)
+        // 100 squared stays within FP16, so a ratio-mask model would answer at most 1 here rather than overflow.
+        let magnitude = MLTensor(repeating: Float(100), shape: [2, 1024, 216])
+        let masks = try await model.prediction(magnitude: magnitude)
+        let vocals = await masks.vocals.shapedArray(of: Float.self).scalars
+        let accompaniment = await masks.accompaniment.shapedArray(of: Float.self).scalars
+        let peak = max(vocals.max() ?? 0, accompaniment.max() ?? 0)
+        // A ratio mask tops out at 1 (1.001 after FP16 rounding); a raw one here is on the magnitude's scale.
+        #expect(peak > 10)
+        #expect(peak <= 100 * 1.01)
+    }
+
+    /// A loud bass tone — every bin it fills is far above 256 — stays in the accompaniment instead of being thrown out
+    /// of it by an FP16 overflow.
+    @Test
+    func loudBassToneStaysInTheAccompaniment() async throws {
+        guard #available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *) else { return }
+        let tone = (0 ..< 4 * 44100).map { Float(0.9 * sin(2 * .pi * 80 * Double($0) / 44100)) }
+        let separator = try AudioSeparator2(modelURL: Self.twoStemModel)
+        let chunks = try await Self.collect(separator.separate(StereoValues(left: tone, right: tone)))
+        let accompaniment = chunks.flatMap(\.accompaniment)
+        // `#expect` treats a key path argument as a throwing call, so the closure form stays.
+        // swiftformat:disable:next preferKeyPath
+        #expect(accompaniment.allSatisfy { $0.isFinite })
+        #expect(Self.relativeError(accompaniment, tone) < 0.05)
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: AudioSeparatorTests.fourStemModel.path)))

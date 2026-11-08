@@ -30,6 +30,13 @@ struct CoreMLMaskInference: SpleeterMaskInference, @unchecked Sendable {
         try self.init(model: MLModel(contentsOf: modelURL), maskNames: stems.maskNames)
     }
 
+    /// The frames the model's `magnitude` input takes (`2 × bins × frames`), when its shape is fixed.
+    var modelFrames: Int? {
+        let input = model.modelDescription.inputDescriptionsByName[SpleeterStemLayout.magnitudeInputName]
+        guard let shape = input?.multiArrayConstraint?.shape, shape.count == 3 else { return nil }
+        return shape[2].intValue
+    }
+
     func masks(magnitude: [Float], channels: Int, bins: Int, frames: Int) throws -> [[Float]] {
         let input = try MLMultiArray(
             shape: [channels, bins, frames].map { NSNumber(value: $0) },

@@ -50,13 +50,14 @@ public struct SpleeterConfiguration: Sendable, Equatable {
     /// The analysis window's gain over the plain periodic Hann; see `SpleeterSTFT.init`.
     public var windowGain: Float
 
-    /// Spleeter's geometry: a 4096-point FFT, a hop of 1024, 1024 bins, and 216 frames (about 5 s at 44.1 kHz) per
-    /// call — what the shipped Core ML models take. ONNX models can run 512 frames, the separator's own partition size.
+    /// Spleeter's geometry: a 4096-point FFT, a hop of 1024, 1024 bins, and 512 frames (1024 × 511 samples, about
+    /// 11.9 s at 44.1 kHz) per call — the separator's own partition size, which a shorter window is padded to inside
+    /// the model anyway. The Core ML models of 0.3.x take 216 frames (about 5 s).
     public init(
         fftSize: Int = 4096,
         hopLength: Int = 1024,
         frequencyBins: Int = 1024,
-        framesPerWindow: Int = 216,
+        framesPerWindow: Int = 512,
         windowGain: Float = SpleeterSTFT.vDSPHannGain
     ) {
         self.fftSize = fftSize

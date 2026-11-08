@@ -117,6 +117,53 @@ magnitude above 256 overflows: loud bins such as a kick drum's dropped out of th
 normalized the masks a second time. The 2- and 4-stem models run in FP16; the 5-stem model is converted with
 `--precision float32`, because its FP16 network output drifts from Spleeter's (about 20 dB SNR on the piano stem).
 
+The window a separator streams is the model's: `clampingFrameCount` defaults to the frames its `magnitude` input
+takes, and `windowLength` gives the samples per window — `1024 × 215` (about 5 s) for the 216-frame 0.3.x models,
+`1024 × 511` (about 11.9 s) for models converted with `convert-to-coreml.py -f 512`. 512 frames is the separator's own
+partition size, which it pads a shorter input to anyway, so a 512-frame model separates 2.4 times the audio per call
+for about the same work.
+
+---
+
+## Other platforms: SpleeterCore and ONNX Runtime
+
+`SpleeterCore` holds everything but the model, with no Apple framework: Spleeter's STFT on a portable FFT,
+ratio masks, and `SpleeterSeparator`, which runs one window end to end on any `SpleeterMaskInference`. The `Spleeter`
+product is SpleeterCore with a Core ML backend and vDSP's FFT.
+
+### ONNX Runtime backend
+
+`SpleeterONNX` (`OnnxMaskInference`) runs a model from `Tools/spleeter-pytorch/convert-to-onnx.py` in ONNX Runtime
+through its C API; `OrtInference` is the small session wrapper under it (load a model file, run it with named float
+tensors), usable for other ONNX models. Both link `libonnxruntime`, which this package does not ship, so they are
+declared only when the environment asks for them:
+
+| Variable | Effect |
+| --- | --- |
+| `SPLEETER_ONNX=1` | Declares `SpleeterONNX` and `OrtInference`. The consumer puts libonnxruntime on the linker search path, e.g. `-Xlinker -L<aar>/jni/arm64-v8a`. |
+| `SPLEETER_ORT_LIB=<dir>` | Also adds `<dir>` to the search and runtime paths (unsafe flags, so only for this package as the root — its tests). |
+
+The headers in `Sources/COnnxRuntime/include` are ONNX Runtime 1.31.0's C API (MIT); link a 1.31 or newer library.
+On Android it comes from the Maven AAR `com.microsoft.onnxruntime:onnxruntime-android` (`jni/<abi>/libonnxruntime.so`),
+which the APK also has to package. For the host tests, the desktop release:
+
+```sh
+# onnxruntime-osx-arm64-1.31.0.tgz from https://github.com/microsoft/onnxruntime/releases/tag/v1.31.0
+SPLEETER_ORT_LIB=~/Library/Caches/swift-spleeter-ort/download-osx/onnxruntime-osx-arm64-1.31.0/lib swift test
+```
+
+To check an Android cross-compile links (swift.org 6.3.3 toolchain with its Android SDK bundle; the
+`SpleeterONNXLinkCheck` product is a shared library of the backend, declared with `SPLEETER_ONNX_LINK_CHECK=1`):
+
+```sh
+SPLEETER_ONNX=1 SPLEETER_ONNX_LINK_CHECK=1 swift build --swift-sdk aarch64-unknown-linux-android28 \
+    --product SpleeterONNXLinkCheck --scratch-path .build-android \
+    -Xlinker -L<onnxruntime-android-1.31.0.aar unzipped>/jni/arm64-v8a
+```
+
+The model tests look for the exported models in `SPLEETER_TEST_MODELS` (default
+`~/Library/Caches/swift-spleeter-ort/models`) and skip when they are missing.
+
 ---
 
 ## Demo App

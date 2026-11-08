@@ -32,11 +32,16 @@ extension InternalAudioSeparatorProtocol {
     }
 
     // swiftlint:disable:next missing_docs
+    public var windowLength: Int {
+        separator.windowLength
+    }
+
+    // swiftlint:disable:next missing_docs
     public init(
         modelURL: URL,
         fftSize: Int,
         frequencyLimit: Int,
-        clampingFrameCount: Int
+        clampingFrameCount: Int?
     ) throws {
         let inference = try CoreMLMaskInference(contentsOf: modelURL, stems: Self.stemLayout)
         try self.init(separator: SpleeterSeparator(
@@ -46,7 +51,7 @@ extension InternalAudioSeparatorProtocol {
                 fftSize: fftSize,
                 hopLength: fftSize / 4,
                 frequencyBins: frequencyLimit,
-                framesPerWindow: clampingFrameCount
+                framesPerWindow: clampingFrameCount ?? inference.modelFrames ?? 216
             ),
             fft: AccelerateRealFFT(size: fftSize)
         ))

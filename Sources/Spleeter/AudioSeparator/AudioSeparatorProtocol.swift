@@ -18,16 +18,21 @@ public protocol AudioSeparatorProtocol {
     ///   - modelURL: URL pointing to the compiled Core ML model (.mlmodelc).
     ///   - fftSize: FFT size for Short-Time Fourier Transform (STFT). Must match the model's configuration.
     ///   - frequencyLimit: Number of frequency bins retained in the STFT output. Must match the model's configuration.
-    ///   - clampingFrameCount: Number of STFT time frames processed per model inference.
-    ///                         Must match the model's configuration.
+    ///   - clampingFrameCount: Number of STFT time frames processed per model inference. Must match the model's
+    ///                         configuration; nil takes it from the model's input shape (216 for the 0.3.x models,
+    ///                         512 for the models converted with `-f 512`).
     ///
     /// - Throws: An error if the model fails to load from the provided URL.
     init(
         modelURL: URL,
         fftSize: Int,
         frequencyLimit: Int,
-        clampingFrameCount: Int
+        clampingFrameCount: Int?
     ) throws
+
+    /// The samples one model prediction covers: `fftSize / 4 × (clampingFrameCount − 1)`. Each window `separate` and
+    /// `separateStereo` stream is this long, the last one shorter.
+    var windowLength: Int { get }
 
     /// Separates vocals and accompaniment from an audio file located at `inputURL`, and writes
     /// the separated stems to the corresponding URLs in `outputURLs`.
@@ -80,15 +85,15 @@ extension AudioSeparatorProtocol {
     ///   - modelURL: URL pointing to the compiled Core ML model (.mlmodelc).
     ///   - fftSize: FFT size for Short-Time Fourier Transform (STFT). Must match the model's configuration.
     ///   - frequencyLimit: Number of frequency bins retained in the STFT output. Must match the model's configuration.
-    ///   - clampingFrameCount: Number of STFT time frames processed per model inference.
-    ///                         Must match the model's configuration.
+    ///   - clampingFrameCount: Number of STFT time frames processed per model inference. Must match the model's
+    ///                         configuration; nil (the default) takes it from the model's input shape.
     ///
     /// - Throws: An error if the model fails to load from the provided URL.
     public init(
         modelURL: URL,
         fftSize: Int = 4096,
         frequencyLimit: Int = 1024,
-        clampingFrameCount: Int = 216
+        clampingFrameCount: Int? = nil
     ) throws {
         try self.init(
             modelURL: modelURL,

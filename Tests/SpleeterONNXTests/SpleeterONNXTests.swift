@@ -1,5 +1,5 @@
 import Foundation
-import OrtInference
+@testable import OrtInference
 import SpleeterCore
 @testable import SpleeterONNX
 import Testing
@@ -170,6 +170,22 @@ struct OrtSessionTests {
         let snrs = SpleeterStemLayout.four.maskNames.map { snr(outputs[$0]!.values, reference[$0]!.values) }
         print("ORT CoreML EP: \(Int(elapsed * 1000)) ms per 512 frames, masks vs CPU \(snrs.map { Int($0) }) dB")
         #expect(snrs.allSatisfy { $0 > 30 })
+    }
+
+    /// A failure after CreateSession — reading the inputs and outputs — releases the session and the memory info: the
+    /// half-built session never reaches deinit. (Only this test fails an init past CreateSession, so the count is its.)
+    @Test
+    func failingInitReleasesItsHandles() throws {
+        struct Injected: Error {}
+        let before = OrtSession.handlesReleasedByFailedInit
+        #expect(throws: Injected.self) {
+            try OrtSession(
+                modelPath: TestModels.onnx512.path,
+                options: OrtSessionOptions(),
+                afterCreatingSession: { throw Injected() }
+            )
+        }
+        #expect(OrtSession.handlesReleasedByFailedInit == before + 2)
     }
 
     @Test

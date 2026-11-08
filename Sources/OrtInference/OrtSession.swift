@@ -113,7 +113,20 @@ public final class OrtSession: @unchecked Sendable {
     private let memoryInfo: OpaquePointer
 
     /// Loads the model at `modelPath`.
-    public init(modelPath: String, options: OrtSessionOptions = OrtSessionOptions()) throws {
+    public convenience init(modelPath: String, options: OrtSessionOptions = OrtSessionOptions()) throws {
+        try self.init(modelPath: modelPath, options: options, afterCreatingSession: nil)
+    }
+
+    /// The handles an init released after failing past `CreateSession`; for tests.
+    nonisolated(unsafe) static var handlesReleasedByFailedInit = 0
+
+    /// - Parameter afterCreatingSession: Runs once the session exists, before its inputs and outputs are read; a test
+    ///   throws from it to take the path where reading them fails.
+    init(
+        modelPath: String,
+        options: OrtSessionOptions,
+        afterCreatingSession: (() throws -> Void)?
+    ) throws {
         let api = try OrtRuntime.api()
         let env = try OrtRuntime.env()
 
@@ -154,18 +167,37 @@ public final class OrtSession: @unchecked Sendable {
         try OrtRuntime.check(api.CreateSession!(env, modelPath, sessionOptions, &session))
         guard let session else { throw OrtError(code: -1, message: "CreateSession returned no session") }
 
+        // Until every stored property is set, a throw leaves `self` partially initialized and Swift does not run
+        // deinit, so everything that can throw past CreateSession runs here, releasing the handles itself.
         var memoryInfo: OpaquePointer?
+        let description: (inputs: [String], outputs: [String], shapes: [String: [Int]])
         do {
             try OrtRuntime.check(api.CreateCpuMemoryInfo!(OrtArenaAllocator, OrtMemTypeDefault, &memoryInfo))
+            try afterCreatingSession?()
+            description = try Self.describe(session, api: api)
         } catch {
             api.ReleaseSession!(session)
+            Self.handlesReleasedByFailedInit += 1
+            if let memoryInfo {
+                api.ReleaseMemoryInfo!(memoryInfo)
+                Self.handlesReleasedByFailedInit += 1
+            }
             throw error
         }
 
+        // Nothing throws from here on; deinit releases both handles.
         self.session = session
         self.memoryInfo = memoryInfo!
+        inputNames = description.inputs
+        outputNames = description.outputs
+        inputShapes = description.shapes
+    }
 
-        // From here on deinit releases the session and the memory info.
+    /// The session's input and output names, in its order, and each tensor input's declared shape.
+    private static func describe(
+        _ session: OpaquePointer,
+        api: OrtApi
+    ) throws -> (inputs: [String], outputs: [String], shapes: [String: [Int]]) {
         var allocator: UnsafeMutablePointer<OrtAllocator>?
         try OrtRuntime.check(api.GetAllocatorWithDefaultOptions!(&allocator))
         func names(
@@ -182,11 +214,11 @@ public final class OrtSession: @unchecked Sendable {
                 return String(cString: raw!)
             }
         }
-        inputNames = try names(count: api.SessionGetInputCount!, name: api.SessionGetInputName!)
-        outputNames = try names(count: api.SessionGetOutputCount!, name: api.SessionGetOutputName!)
+        let inputs = try names(count: api.SessionGetInputCount!, name: api.SessionGetInputName!)
+        let outputs = try names(count: api.SessionGetOutputCount!, name: api.SessionGetOutputName!)
 
         var shapes: [String: [Int]] = [:]
-        for (index, name) in inputNames.enumerated() {
+        for (index, name) in inputs.enumerated() {
             var typeInfo: OpaquePointer?
             try OrtRuntime.check(api.SessionGetInputTypeInfo!(session, index, &typeInfo))
             defer { api.ReleaseTypeInfo!(typeInfo) }
@@ -197,7 +229,7 @@ public final class OrtSession: @unchecked Sendable {
                 shapes[name] = try OrtRuntime.shape(of: tensorInfo)
             }
         }
-        inputShapes = shapes
+        return (inputs, outputs, shapes)
     }
 
     deinit {

@@ -1,20 +1,12 @@
 import Accelerate
 import Foundation
+import Spleeter
 
-/// Errors thrown by STFT during FFT setup or buffer operations.
-public enum STFTError: Error {
-    /// Failed to create the FFT setup object.
-    case failedToCreateFFT
-
-    /// The base address of the input sample buffer is nil.
-    case noBaseAddress
-}
-
-/// Short-Time Fourier Transform (STFT) utility for converting waveforms to spectrograms and vice versa.
+/// The vDSP STFT the library shipped through 0.3.1, kept as the reference `SpleeterSTFT` must reproduce.
 ///
 /// Supports configurable FFT size, hop length, and frequency bin limits.
 /// Uses a Hann window and vDSP for FFT computations.
-struct STFT {
+struct LegacySTFT {
     /// Size of the FFT window (must be a power of two).
     let fftSize: Int
 

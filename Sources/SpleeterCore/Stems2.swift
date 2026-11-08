@@ -49,3 +49,5 @@ extension Stems2 {
         )
     }
 }
+
+extension Stems2: Sendable where Value: Sendable {}

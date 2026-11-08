@@ -35,3 +35,5 @@ extension StereoValues {
         )
     }
 }
+
+extension StereoValues: Sendable where Value: Sendable {}

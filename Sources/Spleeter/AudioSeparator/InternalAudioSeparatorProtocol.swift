@@ -1,30 +1,20 @@
-import CoreML
+import Foundation
+import SpleeterCore
 
 protocol InternalAudioSeparatorProtocol: AudioSeparatorProtocol {
-    associatedtype SpleeterModel: SpleeterModelProtocol
     associatedtype AudioFileStreamWriterStems: StemsProtocol
         where AudioFileStreamWriterStems.Value == AudioFileStreamWriter
 
-    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
-    typealias MLTensorStems = SpleeterModel.MLTensorStems
+    /// The stems the model separates, in its output order.
+    static var stemLayout: SpleeterStemLayout { get }
 
-    var model: SpleeterModel { get }
-    var fftSize: Int { get }
-    var frequencyLimit: Int { get }
-    var clampingFrameCount: Int { get }
+    /// One window end to end, on the Core ML model.
+    var separator: SpleeterSeparator { get }
 
-    init(
-        model: SpleeterModel,
-        fftSize: Int,
-        frequencyLimit: Int,
-        clampingFrameCount: Int
-    ) throws
+    init(separator: SpleeterSeparator)
 
-    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
-    func asyncMapStereoStems(
-        _ tensors: MLTensorStems,
-        _ transform: (MLTensor) async throws -> StereoValues<[Float]>
-    ) async rethrows -> StereoFloatArrayStems
+    /// The stems from the separator's output, in `stemLayout` order.
+    func stereoStems(_ values: [StereoValues<[Float]>]) -> StereoFloatArrayStems
 
     /// Each stem as the mean of its two channels.
     func monaural(_ stems: StereoFloatArrayStems) -> FloatArrayStems
@@ -36,12 +26,9 @@ protocol InternalAudioSeparatorProtocol: AudioSeparatorProtocol {
 }
 
 extension InternalAudioSeparatorProtocol {
-    var hopLength: Int {
-        fftSize / 4
-    }
-
+    /// The samples one model prediction covers.
     var clampingLength: Int {
-        hopLength * (clampingFrameCount - 1)
+        separator.windowLength
     }
 
     // swiftlint:disable:next missing_docs
@@ -51,12 +38,18 @@ extension InternalAudioSeparatorProtocol {
         frequencyLimit: Int,
         clampingFrameCount: Int
     ) throws {
-        try self.init(
-            model: SpleeterModel(contentsOf: modelURL),
-            fftSize: fftSize,
-            frequencyLimit: frequencyLimit,
-            clampingFrameCount: clampingFrameCount
-        )
+        let inference = try CoreMLMaskInference(contentsOf: modelURL, stems: Self.stemLayout)
+        try self.init(separator: SpleeterSeparator(
+            stems: Self.stemLayout,
+            inference: inference,
+            configuration: SpleeterConfiguration(
+                fftSize: fftSize,
+                hopLength: fftSize / 4,
+                frequencyBins: frequencyLimit,
+                framesPerWindow: clampingFrameCount
+            ),
+            fft: AccelerateRealFFT(size: fftSize)
+        ))
     }
 
     @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
@@ -188,52 +181,12 @@ extension InternalAudioSeparatorProtocol {
     ///
     /// - Returns: Separated stems as stereo waveforms with lengths clamped to the input length.
     ///
-    /// - Throws: An error if the model prediction or inverse STFT fails.
+    /// - Throws: An error if the model prediction fails.
     @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
     private func separateStereo(
         chunk: StereoValues<[Float]>
     ) async throws -> StereoFloatArrayStems {
-        let stft = try STFT(fftSize: 4096, hopLength: 1024, frequencyLimit: 1024)
-
-        let spectrograms = try chunk.mapChannels {
-            let spectrogram = try stft.forward(waveform: $0.paddedOrClamped(to: 1024 * 215).map(\.self))
-            return SpectrogramTensor(spectrogram)
-        }
-
-        let magnitude = MLTensor(spectrograms.mapChannels(\.magnitude))
-
-        let masks = try await model.prediction(magnitude: magnitude)
-
-        let squaredMasks = masks.values.map { $0 * $0 }
-        let squaredSum = squaredMasks.dropFirst().reduce(squaredMasks[0], +) + Self.maskEpsilon
-        let stemCount = Float(squaredMasks.count)
-
-        let complex = MLTensor(spectrograms.mapChannels(\.complex))
-        let maxLength = max(chunk.left.count, chunk.right.count)
-
-        return try await asyncMapStereoStems(masks) { mask in
-            let ratioMask = (mask * mask + Self.maskEpsilon / stemCount) / squaredSum
-            let masked = ratioMask * complex
-
-            func waveform(ofChannel channel: Int) async throws -> [Float] {
-                let channelMasked = masked[channel]
-                let waveform = try await stft.inverse(
-                    Spectrogram(
-                        realFrames: channelMasked[..., 0].transposed().array2d(),
-                        imagFrames: channelMasked[..., 1].transposed().array2d()
-                    )
-                )
-                return Array(waveform.prefix(maxLength))
-            }
-
-            return try await StereoValues(left: waveform(ofChannel: 0), right: waveform(ofChannel: 1))
-        }
-    }
-}
-
-extension InternalAudioSeparatorProtocol {
-    /// Spleeter's ratio-mask epsilon (`separator.py`): keeps the division finite where every mask is zero.
-    fileprivate static var maskEpsilon: Float {
-        1e-10
+        let stems = try separator.separate([chunk.left, chunk.right])
+        return stereoStems(stems.map { StereoValues(left: $0[0], right: $0[1]) })
     }
 }

@@ -86,12 +86,13 @@ struct AudioSeparatorTests {
     @Test
     func modelEmitsRawMasks() async throws {
         guard #available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *) else { return }
-        let model = try Spleeter2Model(contentsOf: Self.twoStemModel)
+        let model = try CoreMLMaskInference(contentsOf: Self.twoStemModel, stems: .two)
         // 100 squared stays within FP16, so a ratio-mask model would answer at most 1 here rather than overflow.
-        let magnitude = MLTensor(repeating: Float(100), shape: [2, 1024, 216])
-        let masks = try await model.prediction(magnitude: magnitude)
-        let vocals = await masks.vocals.shapedArray(of: Float.self).scalars
-        let accompaniment = await masks.accompaniment.shapedArray(of: Float.self).scalars
+        let magnitude = [Float](repeating: 100, count: 2 * 1024 * 216)
+        let masks = try model.masks(magnitude: magnitude, channels: 2, bins: 1024, frames: 216)
+        let vocals = masks[0]
+        let accompaniment = masks[1]
+        #expect(vocals.count == magnitude.count && accompaniment.count == magnitude.count)
         let peak = max(vocals.max() ?? 0, accompaniment.max() ?? 0)
         // A ratio mask tops out at 1 (1.001 after FP16 rounding); a raw one here is on the magnitude's scale.
         #expect(peak > 10)

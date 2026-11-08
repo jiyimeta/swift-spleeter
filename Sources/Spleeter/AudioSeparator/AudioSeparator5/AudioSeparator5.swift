@@ -1,26 +1,20 @@
-import CoreML
+import Foundation
+import SpleeterCore
 
 /// Audio separator that separates a music into 5 stems (vocals, piano, drums, bass and others)
 /// by using a pretrained Spleeter Core ML model.
 public struct AudioSeparator5: AudioSeparatorProtocol, InternalAudioSeparatorProtocol {
-    typealias SpleeterModel = Spleeter5Model
-
     public typealias FloatArrayStems = Stems5<[Float]>
     public typealias StereoFloatArrayStems = Stems5<StereoValues<[Float]>>
     public typealias URLStems = Stems5<URL>
     typealias AudioFileStreamWriterStems = Stems5<AudioFileStreamWriter>
 
-    let model: Spleeter5Model
-    let fftSize: Int
-    let frequencyLimit: Int
-    let clampingFrameCount: Int
+    static let stemLayout = SpleeterStemLayout.five
 
-    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
-    func asyncMapStereoStems(
-        _ tensors: MLTensorStems,
-        _ transform: (MLTensor) async throws -> StereoValues<[Float]>
-    ) async rethrows -> Stems5<StereoValues<[Float]>> {
-        try await tensors.asyncMapStems(transform)
+    let separator: SpleeterSeparator
+
+    func stereoStems(_ values: [StereoValues<[Float]>]) -> Stems5<StereoValues<[Float]>> {
+        Stems5(values)
     }
 
     func monaural(_ stems: Stems5<StereoValues<[Float]>>) -> Stems5<[Float]> {

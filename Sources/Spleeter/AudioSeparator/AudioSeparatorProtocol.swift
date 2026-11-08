@@ -1,4 +1,5 @@
-import CoreML
+import Foundation
+import SpleeterCore
 
 /// Protocol defining the interface for audio separators.
 public protocol AudioSeparatorProtocol {

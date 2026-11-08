@@ -13,15 +13,30 @@ let package = Package(
         .visionOS(.v1),
     ],
     products: [
+        // Core ML separation for Apple platforms.
         .library(
             name: "Spleeter",
             targets: ["Spleeter"]
+        ),
+        // The separation's signal processing — STFT, ratio masks, one window end to end — on any platform, with the
+        // model behind `SpleeterMaskInference`.
+        .library(
+            name: "SpleeterCore",
+            targets: ["SpleeterCore"]
         ),
     ],
     dependencies: [],
     targets: [
         .target(
-            name: "Spleeter"
+            name: "SpleeterCore"
+        ),
+        .target(
+            name: "Spleeter",
+            dependencies: ["SpleeterCore"]
+        ),
+        .testTarget(
+            name: "SpleeterCoreTests",
+            dependencies: ["SpleeterCore"]
         ),
         .testTarget(
             name: "SpleeterTests",

@@ -1,5 +1,6 @@
 import Accelerate
 import AVFAudio
+import SpleeterCore
 
 /// An error type representing failures that can occur during audio file operations.
 public enum AudioFileError: Error {

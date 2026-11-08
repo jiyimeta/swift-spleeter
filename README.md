@@ -152,6 +152,11 @@ which the APK also has to package. For the host tests, the desktop release:
 SPLEETER_ORT_LIB=~/Library/Caches/swift-spleeter-ort/download-osx/onnxruntime-osx-arm64-1.31.0/lib swift test
 ```
 
+`OrtSessionOptions(intraOpThreads:executionProviders:)` takes providers to try before the CPU one — `.xnnpack(threads:)`
+(in the Android AAR, not in the macOS release) or `.named("CoreML", options: […])` and the like. A provider the
+linked build lacks, or refuses, is skipped; `session.executionProviders` and `skippedExecutionProviders` say what was
+used. `OnnxMaskInference(modelPath:stems:options:)` passes them through.
+
 To check an Android cross-compile links (swift.org 6.3.3 toolchain with its Android SDK bundle; the
 `SpleeterONNXLinkCheck` product is a shared library of the backend, declared with `SPLEETER_ONNX_LINK_CHECK=1`):
 

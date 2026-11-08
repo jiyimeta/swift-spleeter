@@ -30,13 +30,52 @@ public struct OrtTensor: Sendable, Equatable {
     }
 }
 
+/// An execution provider to try before ONNX Runtime's CPU provider, which always comes last and takes whatever the
+/// others do not.
+public enum OrtExecutionProvider: Sendable, Equatable {
+    /// XNNPACK, in the Android and iOS builds of ONNX Runtime. `threads` sizes its own thread pool; nil (0) uses the
+    /// session's intra-op pool.
+    case xnnpack(threads: Int? = nil)
+
+    /// Any provider by the name `SessionOptionsAppendExecutionProvider` takes, with its options.
+    case named(String, options: [String: String] = [:])
+
+    /// The name `SessionOptionsAppendExecutionProvider` takes.
+    public var appendName: String {
+        switch self {
+        case .xnnpack: "XNNPACK"
+        case let .named(name, _): name
+        }
+    }
+
+    /// The name `GetAvailableProviders` lists it under.
+    public var providerName: String {
+        switch self {
+        case .xnnpack: "XnnpackExecutionProvider"
+        case let .named(name, _): name.hasSuffix("ExecutionProvider") ? name : name + "ExecutionProvider"
+        }
+    }
+
+    var providerOptions: [(String, String)] {
+        switch self {
+        case let .xnnpack(threads): threads.map { [("intra_op_num_threads", String($0))] } ?? []
+        case let .named(_, options): options.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+        }
+    }
+}
+
 /// How a session runs.
 public struct OrtSessionOptions: Sendable {
     /// The threads one inference may use; ONNX Runtime picks (one per physical core) when nil.
     public var intraOpThreads: Int?
 
-    public init(intraOpThreads: Int? = nil) {
+    /// The providers to try, in order of preference, before the CPU provider. One the linked ONNX Runtime does not
+    /// have, or refuses, is skipped (see `OrtSession.skippedExecutionProviders`) rather than failing the session.
+    public var executionProviders: [OrtExecutionProvider]
+
+    public init(intraOpThreads: Int? = nil, executionProviders: [OrtExecutionProvider] = []) {
         self.intraOpThreads = intraOpThreads
+        self.executionProviders = executionProviders
     }
 }
 
@@ -53,6 +92,23 @@ public final class OrtSession: @unchecked Sendable {
     /// Each input's shape as the model declares it; a dynamic dimension is -1.
     public let inputShapes: [String: [Int]]
 
+    /// The providers the session was given, in order, `CPUExecutionProvider` last. ONNX Runtime assigns each node to
+    /// the first of them that supports it.
+    public let executionProviders: [String]
+
+    /// The requested providers that were left out, with why.
+    public let skippedExecutionProviders: [(provider: String, reason: String)]
+
+    /// The providers the linked ONNX Runtime was built with (`GetAvailableProviders`).
+    public static func availableProviders() throws -> [String] {
+        let api = try OrtRuntime.api()
+        var list: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+        var count: Int32 = 0
+        try OrtRuntime.check(api.GetAvailableProviders!(&list, &count))
+        defer { _ = api.ReleaseAvailableProviders!(list, count) }
+        return (0 ..< Int(count)).compactMap { list?[$0].map { String(cString: $0) } }
+    }
+
     private let session: OpaquePointer
     private let memoryInfo: OpaquePointer
 
@@ -67,6 +123,31 @@ public final class OrtSession: @unchecked Sendable {
         if let threads = options.intraOpThreads {
             try OrtRuntime.check(api.SetIntraOpNumThreads!(sessionOptions, Int32(threads)))
         }
+        let available = Set(try Self.availableProviders())
+        var appended: [String] = []
+        var skipped: [(provider: String, reason: String)] = []
+        for provider in options.executionProviders {
+            guard available.contains(provider.providerName) else {
+                skipped.append((provider.providerName, "not in this ONNX Runtime build"))
+                continue
+            }
+            let keys = provider.providerOptions.map(\.0)
+            let values = provider.providerOptions.map(\.1)
+            do {
+                try OrtRuntime.withCStrings(keys) { keys in
+                    try OrtRuntime.withCStrings(values) { values in
+                        try OrtRuntime.check(api.SessionOptionsAppendExecutionProvider!(
+                            sessionOptions, provider.appendName, keys, values, keys.count
+                        ))
+                    }
+                }
+                appended.append(provider.providerName)
+            } catch let error as OrtError {
+                skipped.append((provider.providerName, error.message))
+            }
+        }
+        executionProviders = appended + ["CPUExecutionProvider"]
+        skippedExecutionProviders = skipped
         try OrtRuntime.check(api.SetSessionGraphOptimizationLevel!(sessionOptions, ORT_ENABLE_ALL))
 
         var session: OpaquePointer?

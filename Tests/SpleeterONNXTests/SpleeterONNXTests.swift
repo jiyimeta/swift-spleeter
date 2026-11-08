@@ -103,6 +103,75 @@ struct OrtSessionTests {
         }
     }
 
+    /// A provider the build lacks is skipped, not fatal; the CPU provider is always there.
+    @Test
+    func fallsBackFromAnUnavailableProvider() throws {
+        let available = try OrtSession.availableProviders()
+        print("ONNX Runtime providers in this build: \(available)")
+        #expect(available.contains("CPUExecutionProvider"))
+        let session = try OrtSession(
+            modelPath: TestModels.onnx512.path,
+            options: OrtSessionOptions(executionProviders: [.named("NoSuchProvider"), .xnnpack(threads: 4)])
+        )
+        print("used \(session.executionProviders), skipped \(session.skippedExecutionProviders)")
+        #expect(session.executionProviders.last == "CPUExecutionProvider")
+        #expect(session.skippedExecutionProviders.contains { $0.provider == "NoSuchProviderExecutionProvider" })
+        #expect(session.executionProviders.contains("XnnpackExecutionProvider")
+            == available.contains("XnnpackExecutionProvider"))
+        let input = OrtTensor(shape: [2, 1024, 512], values: [Float](repeating: 1, count: 2 * 1024 * 512))
+        #expect(try session.run(["magnitude": input], outputNames: ["vocalsMask"])["vocalsMask"]?.values.count
+            == 2 * 1024 * 512)
+    }
+
+    /// XNNPACK against the CPU provider, where this build has it (XNNPACK wants the session pool at 1 thread and its
+    /// own pool sized instead).
+    @Test(.enabled(if: (try? OrtSession.availableProviders().contains("XnnpackExecutionProvider")) == true))
+    func xnnpackTiming() throws {
+        let input = OrtTensor(
+            shape: [2, 1024, 512],
+            values: (0 ..< 2 * 1024 * 512).map { Float($0 % 977) / 97.7 }
+        )
+        let cpu = try OrtSession(modelPath: TestModels.onnx512.path)
+        let reference = try cpu.run(["magnitude": input])
+        for threads in [4, 8] {
+            let session = try OrtSession(
+                modelPath: TestModels.onnx512.path,
+                options: OrtSessionOptions(intraOpThreads: 1, executionProviders: [.xnnpack(threads: threads)])
+            )
+            #expect(session.executionProviders.first == "XnnpackExecutionProvider")
+            let outputs = try session.run(["magnitude": input])
+            let start = Date()
+            for _ in 0 ..< 3 {
+                _ = try session.run(["magnitude": input])
+            }
+            let elapsed = Date().timeIntervalSince(start) / 3
+            let snrs = SpleeterStemLayout.four.maskNames.map { snr(outputs[$0]!.values, reference[$0]!.values) }
+            print("XNNPACK \(threads) threads: \(Int(elapsed * 1000)) ms per 512 frames, masks vs CPU \(snrs.map { Int($0) }) dB")
+        }
+    }
+
+    /// A provider the build has is appended and runs: Core ML in the macOS release, which lacks XNNPACK.
+    @Test(.enabled(if: (try? OrtSession.availableProviders().contains("CoreMLExecutionProvider")) == true))
+    func appendsAnAvailableProvider() throws {
+        let input = OrtTensor(
+            shape: [2, 1024, 512],
+            values: (0 ..< 2 * 1024 * 512).map { Float($0 % 977) / 97.7 }
+        )
+        let reference = try OrtSession(modelPath: TestModels.onnx512.path).run(["magnitude": input])
+        let session = try OrtSession(
+            modelPath: TestModels.onnx512.path,
+            options: OrtSessionOptions(executionProviders: [.named("CoreML", options: ["ModelFormat": "MLProgram"])])
+        )
+        #expect(session.executionProviders == ["CoreMLExecutionProvider", "CPUExecutionProvider"])
+        let outputs = try session.run(["magnitude": input])
+        let start = Date()
+        _ = try session.run(["magnitude": input])
+        let elapsed = Date().timeIntervalSince(start)
+        let snrs = SpleeterStemLayout.four.maskNames.map { snr(outputs[$0]!.values, reference[$0]!.values) }
+        print("ORT CoreML EP: \(Int(elapsed * 1000)) ms per 512 frames, masks vs CPU \(snrs.map { Int($0) }) dB")
+        #expect(snrs.allSatisfy { $0 > 30 })
+    }
+
     @Test
     func reportsAMissingModel() {
         #expect(throws: OrtError.self) {

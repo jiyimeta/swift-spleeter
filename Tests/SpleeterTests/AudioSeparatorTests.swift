@@ -127,4 +127,38 @@ struct AudioSeparatorTests {
             #expect(Self.relativeError(sum, input) < 0.02)
         }
     }
+
+    /// The 0.4.0 release's 512-frame models, `convert-to-coreml.py -f 512`, compiled under
+    /// `~/Library/Caches/swift-spleeter-ort/models/coreml-512/{2,4,5}stems/`.
+    static func fiveTwelveFrameModel(stems: Int) -> URL {
+        URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Library/Caches/swift-spleeter-ort/models/coreml-512/\(stems)stems/SpleeterModel.mlmodelc")
+    }
+
+    /// A 512-frame model gives the separator its window without being told, and its stems add up to the mix across
+    /// windows: 14 s is one full 11.9 s window and a short one.
+    @Test(.enabled(if: [2, 4, 5].allSatisfy {
+        FileManager.default.fileExists(atPath: AudioSeparatorTests.fiveTwelveFrameModel(stems: $0).path)
+    }))
+    func fiveTwelveFrameModelsSetTheirWindow() async throws {
+        guard #available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *) else { return }
+        let left = Self.signal(seconds: 14, channelSeed: 1)
+        let right = Self.signal(seconds: 14, channelSeed: 1.5)
+        let input = StereoValues(left: left, right: right)
+
+        func check<Separator: AudioSeparatorProtocol>(_ separator: Separator, stems: Int) async throws {
+            #expect(separator.windowLength == 1024 * 511)
+            let chunks = try await Self.collect(separator.separateStereo(input))
+            #expect(chunks.count == 2)
+            for (channel, reference) in [(\StereoValues<[Float]>.left, left), (\.right, right)] {
+                let stemSamples = (0 ..< stems).map { stem in chunks.flatMap { $0.values[stem][keyPath: channel] } }
+                #expect(stemSamples.allSatisfy { $0.count == reference.count })
+                let sum = (0 ..< reference.count).map { index in stemSamples.reduce(Float(0)) { $0 + $1[index] } }
+                #expect(Self.relativeError(sum, reference) < 0.02, "\(stems) stems")
+            }
+        }
+        try await check(AudioSeparator2(modelURL: Self.fiveTwelveFrameModel(stems: 2)), stems: 2)
+        try await check(AudioSeparator4(modelURL: Self.fiveTwelveFrameModel(stems: 4)), stems: 4)
+        try await check(AudioSeparator5(modelURL: Self.fiveTwelveFrameModel(stems: 5)), stems: 5)
+    }
 }

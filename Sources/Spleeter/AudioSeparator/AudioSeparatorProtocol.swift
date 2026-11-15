@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Foundation
 import SpleeterCore
 
@@ -116,3 +117,4 @@ public struct Progress: Sendable {
         Float(current) / Float(total)
     }
 }
+#endif

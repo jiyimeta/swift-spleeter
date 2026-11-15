@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Accelerate
 import SpleeterCore
 
@@ -79,3 +80,4 @@ struct AccelerateRealFFT: SpleeterFFT, @unchecked Sendable {
         }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Accelerate
 import Foundation
 import Spleeter
@@ -162,3 +163,4 @@ struct LegacySTFT {
         return Array(output[pad ..< output.count - pad])
     }
 }
+#endif

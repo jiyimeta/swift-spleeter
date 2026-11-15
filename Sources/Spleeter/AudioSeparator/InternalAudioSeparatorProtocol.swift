@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Foundation
 import SpleeterCore
 
@@ -195,3 +196,4 @@ extension InternalAudioSeparatorProtocol {
         return stereoStems(stems.map { StereoValues(left: $0[0], right: $0[1]) })
     }
 }
+#endif

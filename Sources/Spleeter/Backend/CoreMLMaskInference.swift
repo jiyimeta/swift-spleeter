@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import CoreML
 import SpleeterCore
 
@@ -58,3 +59,4 @@ struct CoreMLMaskInference: SpleeterMaskInference, @unchecked Sendable {
         }
     }
 }
+#endif

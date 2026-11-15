@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Accelerate
 import AVFAudio
 import SpleeterCore
@@ -113,3 +114,4 @@ public struct AudioFile {
         }
     }
 }
+#endif

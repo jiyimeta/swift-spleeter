@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Accelerate
 import Foundation
 @testable import Spleeter
@@ -146,3 +147,4 @@ struct STFTTests {
         print("STFT timing, legacy: \(Int(Date().timeIntervalSince(start) * 1000)) ms for 2 forward + 8 inverse")
     }
 }
+#endif

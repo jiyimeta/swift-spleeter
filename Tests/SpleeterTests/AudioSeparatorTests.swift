@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import CoreML
 import Foundation
 @testable import Spleeter
@@ -162,3 +163,4 @@ struct AudioSeparatorTests {
         try await check(AudioSeparator5(modelURL: Self.fiveTwelveFrameModel(stems: 5)), stems: 5)
     }
 }
+#endif

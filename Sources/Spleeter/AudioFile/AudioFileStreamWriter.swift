@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import AVFAudio
 
 /// An error type representing failures that may occur during audio file writing.
@@ -93,3 +94,4 @@ public struct AudioFileStreamWriter {
         try outputFile.write(from: buffer)
     }
 }
+#endif

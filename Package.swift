@@ -48,6 +48,9 @@ let package = Package(
         .target(
             name: "SpleeterCore"
         ),
+        // Core ML and vDSP, so Apple only. It is declared on every platform — a consumer's conditional dependency on
+        // the product must resolve everywhere — and its sources are wrapped in `#if canImport(CoreML)`, so on Windows,
+        // Linux and Android it compiles to SpleeterCore's re-export alone and `swift test` builds there.
         .target(
             name: "Spleeter",
             dependencies: ["SpleeterCore"]

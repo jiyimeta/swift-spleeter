@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Accelerate
 
 /// Represents a complex spectrogram with real and imaginary parts.
@@ -34,3 +35,4 @@ struct Spectrogram {
         frames.map(\.magnitude)
     }
 }
+#endif

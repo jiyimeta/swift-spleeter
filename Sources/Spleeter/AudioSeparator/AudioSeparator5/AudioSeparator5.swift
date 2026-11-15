@@ -1,3 +1,4 @@
+#if canImport(CoreML)
 import Foundation
 import SpleeterCore
 
@@ -28,3 +29,4 @@ public struct AudioSeparator5: AudioSeparatorProtocol, InternalAudioSeparatorPro
         try urls.mapStems(transform)
     }
 }
+#endif

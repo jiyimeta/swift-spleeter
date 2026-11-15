@@ -169,6 +169,19 @@ which the APK also has to package. For the host tests, the desktop release:
 SPLEETER_ORT_LIB=~/Library/Caches/swift-spleeter-ort/download-osx/onnxruntime-osx-arm64-1.31.0/lib swift test
 ```
 
+On Windows, with the `onnxruntime-win-x64-1.31.0` release: pass its `lib` folder to the linker as `/LIBPATH` — not
+through `LIB`, which, once set, stops the Swift driver finding the MSVC and SDK libraries — and put `onnxruntime.dll`
+beside the built tests. Windows searches System32 before `PATH`, and Windows 11 may carry an older `onnxruntime.dll`
+of its own there (Windows ML), which fails with "does not provide API version 31". An app should likewise load the
+DLL it ships by full path.
+
+```powershell
+$env:SPLEETER_ONNX = '1'
+swift build --build-tests -Xlinker /LIBPATH:<lib>
+Copy-Item <lib>\onnxruntime.dll, <lib>\onnxruntime_providers_shared.dll (swift build --show-bin-path)
+swift test --skip-build
+```
+
 `OrtSessionOptions(intraOpThreads:executionProviders:)` takes providers to try before the CPU one — `.xnnpack(threads:)`
 (in the Android AAR, not in the macOS release) or `.named("CoreML", options: […])` and the like. A provider the
 linked build lacks, or refuses, is skipped; `session.executionProviders` and `skippedExecutionProviders` say what was

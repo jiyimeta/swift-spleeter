@@ -164,7 +164,14 @@ public final class OrtSession: @unchecked Sendable {
         try OrtRuntime.check(api.SetSessionGraphOptimizationLevel!(sessionOptions, ORT_ENABLE_ALL))
 
         var session: OpaquePointer?
+        #if os(Windows)
+        // ONNX Runtime's paths are `ORTCHAR_T`, which is `wchar_t` on Windows: the path goes in as UTF-16 there.
+        try modelPath.withCString(encodedAs: UTF16.self) { path in
+            try OrtRuntime.check(api.CreateSession!(env, path, sessionOptions, &session))
+        }
+        #else
         try OrtRuntime.check(api.CreateSession!(env, modelPath, sessionOptions, &session))
+        #endif
         guard let session else { throw OrtError(code: -1, message: "CreateSession returned no session") }
 
         // Until every stored property is set, a throw leaves `self` partially initialized and Swift does not run
